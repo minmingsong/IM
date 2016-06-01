@@ -4,24 +4,26 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
-import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 
 import cn.song.Util.MUtil;
+import cn.song.Util.MUtil.Message;
 import cn.song.dataclient.Client_Info;
 
 public class Server extends JFrame
@@ -36,6 +38,7 @@ public class Server extends JFrame
 	JLabel tip;
 	JButton openServer;
 	Client_Info clients;
+	HashMap<String, ObjectOutputStream> client_map = new HashMap<>();
 
 	public Server()
 	{
@@ -172,7 +175,6 @@ public class Server extends JFrame
 			@Override
 			public void windowActivated(WindowEvent e)
 			{
-				// TODO Auto-generated method stub
 
 			}
 		});
@@ -203,8 +205,14 @@ public class Server extends JFrame
 		InputStream is = null;
 		OutputStream os = null;
 		ObjectInputStream ois = null;
+		ObjectOutputStream oos = null;
+		ObjectOutputStream toos = null;
+
+		Message MSG = null;
+		StringBuffer destname = new StringBuffer();
 
 		Client_Info client;
+
 		public Runing(Socket socket)
 		{
 			super();
@@ -224,56 +232,53 @@ public class Server extends JFrame
 		@Override
 		public void run()
 		{
-			byte[] b = new byte[512];
-			int len = 0;
-			
+
 			try
 			{
 				ois = new ObjectInputStream(is);
-				client = (Client_Info)ois.readObject();
-				System.out.println("得到的对象："+client.getName());
-				Thread.currentThread().setName(client.getName());
-				len = is.read(b);
-				String str = new String(b, 0, len);
-				System.out.println(str);
-				String[] strs = str.split(" ");
-				b = socket.getInetAddress().getAddress();
+				oos = new ObjectOutputStream(os);
 
-				System.out.println(socket.getInetAddress());
-				System.out.println(Arrays.toString(b));
-				clients = new Client_Info(Integer.valueOf(strs[0]), strs[1]);
-				clients.setIp(Arrays.toString(b));
-				System.out.println("客户：" + clients.getId() + "登陆成功\n" + "iP:" + clients.getIp());
-//				ois.close();
+				client = (Client_Info) ois.readObject();
+				System.out.println("得到的对象：" + client.getName());
+
+				Thread.currentThread().setName(client.getName());// 设置本线程的名字
+				client_map.put(client.getName(), oos);
+
+				System.out.println("客户：" + client.getId() + "登陆成功\n");
 			} catch (IOException e1)
 			{
 				e1.printStackTrace();
 			} catch (ClassNotFoundException e)
 			{
-//				e.printStackTrace();
 				System.out.println("对象未传输");
 			}
-			b = new byte[512];
-			DataInputStream dis = new DataInputStream(is);
-			DataOutputStream dos = new DataOutputStream(os);
-			StringBuffer MSG = new StringBuffer();
 			while (!socket.isClosed())
 			{
 				try
 				{
-					Thread.sleep(500);
-					// len = is.read(b, 0, 512);
-					// if (len != 0 && len != -1)
-					// {
-					// System.out.println(new String(b, 0, len));
-					// }
-					MSG.delete(0, MSG.length());
-					MSG.append(dis.readUTF());
-					System.out.println(MSG);
-					if (!MSG.toString().equals("呼叫服务器。。。"))
-					{
-						dos.writeUTF("您发送的内容为：" + MSG.toString());
+
+					MSG = (Message) ois.readObject();
+					if (MSG != null)
+					{ // 对所有人通话
+						if (MSG.getText().trim().indexOf("在_线") != -1)
+						{
+							System.out.println(MSG.getText());
+							oos.writeObject(MSG);
+							
+						} else
+						{
+							System.out.println(MSG.getText());
+							Collection<ObjectOutputStream> set = client_map.values();
+							Iterator<ObjectOutputStream> it = set.iterator();
+							while (it.hasNext())
+							{
+								toos = it.next();
+								toos.writeObject(MSG);
+							}
+						}
 					}
+					Thread.sleep(50);
+
 				} catch (EOFException e)
 				{
 					System.out.println("EOFException");
@@ -281,20 +286,43 @@ public class Server extends JFrame
 				} catch (InterruptedException | IOException e)
 				{
 					e.printStackTrace();
+				} catch (ClassNotFoundException e)
+				{
+					// e.printStackTrace();
+					System.out.println("未找到类");
 				}
 
 			}
-			if (ois != null)
-			{
-				try
-				{
-					ois.close();
-				} catch (IOException e)
-				{
-					// TODO 自动生成的 catch 块
-					e.printStackTrace();
-				}
-			}
+//			if (ois != null)
+//			{
+//				try
+//				{
+//					ois.close();
+//				} catch (IOException e)
+//				{
+//					e.printStackTrace();
+//				}
+//			}
+//			if (toos != null)
+//			{
+//				try
+//				{
+//					toos.close();
+//				} catch (IOException e)
+//				{
+//					e.printStackTrace();
+//				}
+//			}
+//			if (os != null)
+//			{
+//				try
+//				{
+//					os.close();
+//				} catch (IOException e)
+//				{
+//					e.printStackTrace();
+//				}
+//			}
 		}
 
 	}

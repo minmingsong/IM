@@ -7,16 +7,18 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.lang.management.ManagementFactory;
+import java.net.ConnectException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -25,6 +27,7 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 
 import cn.song.Util.MUtil;
+import cn.song.Util.MUtil.Message;
 import cn.song.dataclient.Client_Info;
 
 public class Client extends JFrame
@@ -44,17 +47,21 @@ public class Client extends JFrame
 	JTextField sendmsg;
 	JButton send;
 	JPanel panel;
-	DataOutputStream dos = null;
-	DataInputStream dis = null;
-	ObjectOutputStream oos = null;
-	ArrayList<String> msglist;
-	StringBuffer sbuffer = new StringBuffer();
 
+	Message Msg = new Message("", "", "");
+	List<String> msglist = null;
+	StringBuffer sbuffer = null;
+
+	
+	ObjectOutputStream oos = null;
 	public Client()
 	{
 		super("客户端");
 		this.setLocationByPlatform(true);
 		this.setSize(600, 400);
+		
+		sbuffer = new StringBuffer();
+		
 		msglist = new ArrayList<>();
 
 		panel = new JPanel(null);
@@ -109,6 +116,8 @@ public class Client extends JFrame
 					socket = new Socket("10.216.78.178", 6699);
 
 					me = new Client_Info(11110000, "password");
+					me.setName(ManagementFactory.getRuntimeMXBean().getName());
+					Msg.setSourceName(me.getName());
 					System.out.println("连接服务器成功");
 
 					login.setVisible(false);
@@ -127,34 +136,51 @@ public class Client extends JFrame
 							InputStream is = null;
 							OutputStream os = null;
 							
+							ObjectInputStream ois = null;
+							
 
 							try
 							{
 								is = socket.getInputStream();
 								os = socket.getOutputStream();
-								dos = new DataOutputStream(os);
-								dis = new DataInputStream(is);
 								
 								oos = new ObjectOutputStream(os);
 								oos.writeObject(me);
-								os.write((me.getId() + " " + me.getPassword()).getBytes());
-								os.flush();
+								ois = new ObjectInputStream(is);
+								System.out.println("发送本客户的信息成功");
+								oos.flush();
 								Thread.sleep(1000);
-//								oos.close();
-							} catch (IOException | InterruptedException e1)
+							} catch (SocketException e)
 							{
-								e1.printStackTrace();
+//								e.printStackTrace();
+								System.out.println("SocketException");
 								System.exit(0);
+							} catch (InterruptedException e)
+							{
+								e.printStackTrace();
+							} catch (IOException e)
+							{
+								e.printStackTrace();
 							}
 
+							String str = me.getName() + "在_线";
 							while (!socket.isClosed())
 							{
 
 								try
 								{
-									// os.write("呼叫服务器。。。".getBytes());
-									dos.writeUTF("呼叫服务器。。。");
-									Thread.sleep(1000);
+									Msg.setText(str);
+									oos.writeObject(Msg);
+									Thread.sleep(3000);
+									Msg = (Message)ois.readObject();
+									if (Msg.getText().equals(str))
+									{
+										continue;
+									}
+									
+									msglist.add(Msg.getSourceName());
+									msglist.add("     "+Msg.getText());
+									DispalyHis();
 									
 								}catch (SocketException e)
 								{
@@ -163,14 +189,46 @@ public class Client extends JFrame
 								catch (InterruptedException e)
 								{
 									e.printStackTrace();
+								} catch (ClassNotFoundException e)
+								{
+//									e.printStackTrace();
+									System.out.println("ClassNotFoundException");
 								} catch (IOException e)
 								{
 									e.printStackTrace();
+									System.out.println("IO");
+								}
+							}
+							if (oos != null)
+							{
+								
+								try
+								{
+									oos.close();
+								} catch (IOException e1)
+								{
+									e1.printStackTrace();
+								}
+							}
+							if (ois != null)
+							{
+								
+								try
+								{
+									ois.close();
+								} catch (IOException e1)
+								{
+									e1.printStackTrace();
 								}
 							}
 						}
 					}).start();
-				} catch (UnknownHostException e1)
+				}catch (ConnectException e1)
+				{
+					System.out.println("ConnectException");
+					return;
+				}
+				catch (UnknownHostException e1)
 				{
 					e1.printStackTrace();
 				} catch (IOException e1)
@@ -217,17 +275,7 @@ public class Client extends JFrame
 			@Override
 			public void windowClosing(WindowEvent e)
 			{
-				if (oos != null)
-				{
-					
-					try
-					{
-						oos.close();
-					} catch (IOException e1)
-					{
-						e1.printStackTrace();
-					}
-				}
+				
 				if (socket != null)
 				{
 
@@ -268,56 +316,48 @@ public class Client extends JFrame
 	}
 
 	/**
-	 * 
+	 * 用于更新历史消息记录
 	 */
 	private void sendMSG()
 	{
-		try
-		{
-			if (sendmsg.getText().trim().equals(""))
-			{
-				return;
-			}
-
-			MUtil.sendMsg(dos, sendmsg.getText());
-			msglist.add(sendmsg.getText());
-
-//			sbuffer.delete(0, sbuffer.length());
-//			for (int i = 0; i < msglist.size(); i++)
-//			{
-//				sbuffer.append(msglist.get(i));// 自动转行
-//			}
-//			msg.setText(sbuffer.toString());
-			if (msglist.size() > 10)// 超过把内容控制在10行内
-			{
-				msglist.subList(5, 10);
-			}
-		} catch (IOException e1)
-		{
-			e1.printStackTrace();
-		}
-		sendmsg.setText(" ");
-		
-		try
-		{
-			receive(dis.readUTF());
-		} catch (IOException e)
+		if (sendmsg.getText().trim().equals(""))
 		{
 			return;
 		}
 
+		Msg.setText(sendmsg.getText());
+//			MUtil.sendMsg(oos, Msg);
+		msglist.add(sendmsg.getText());
+		
+		if (msglist.size() > 10)// 把内容控制在10行内
+		{
+			msglist = msglist.subList(5,10);
+		}
+		sendmsg.setText(null);
+		try
+		{
+			MUtil.sendMsg(oos, Msg);
+			oos.flush();
+		} catch (IOException e)
+		{
+			e.printStackTrace();
+			System.out.println("flush失败343");
+		}
+		System.out.println("消息发送成功");
+		DispalyHis();
 	}
 
-	private void receive(String str)
+	
+	private void DispalyHis()
 	{
-		
-		sbuffer.delete(0, sbuffer.length());
-		for (int i = 0; i < msglist.size(); i++)
+		if (msglist.size()>0)
 		{
-			sbuffer.append(msglist.get(i)+"\n");// 自动转行
+			sbuffer.delete(0, sbuffer.length());
+			for (String str:msglist)
+			{
+				sbuffer.append(str+'\n');
+			}
 		}
-		sbuffer.append(str);
-		msglist.add(str);
 		msg.setText(sbuffer.toString());
 	}
 

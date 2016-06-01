@@ -1,7 +1,8 @@
 package cn.song.Util;
 
-import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -42,9 +43,57 @@ public class MUtil
 		return null;
 	}
 
-	public static void sendMsg(DataOutputStream dos, String Msg) throws IOException
+	public static void sendMsg(ObjectOutputStream oos, Message Msg) throws IOException
 	{
-		dos.writeUTF(Msg);
+		oos.writeObject(Msg);
 	}
+
+	
+	
+	public static class Message implements Serializable
+	{
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -3887585876095560184L;
+		String destName;
+		String sourceName;
+		String Text;
+		
+		public Message(String destName, String sourceName, String text)
+		{
+			super();
+			this.destName = destName;
+			this.sourceName = sourceName;
+			Text = text;
+		}
+		public String getDestName()
+		{
+			return destName;
+		}
+		public void setDestName(String destName)
+		{
+			this.destName = destName;
+		}
+		public String getSourceName()
+		{
+			return sourceName;
+		}
+		public void setSourceName(String sourceName)
+		{
+			this.sourceName = sourceName;
+		}
+		public String getText()
+		{
+			return Text;
+		}
+		public void setText(String text)
+		{
+			Text = text;
+		}
+		
+	}
+
+	
 
 }

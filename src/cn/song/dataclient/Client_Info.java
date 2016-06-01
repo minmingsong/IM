@@ -10,9 +10,9 @@ public class Client_Info implements Serializable
 	/**
 	 * 
 	 */
-	private static final long serialVersionUID = -8096982911405569977L;
+	private static final long serialVersionUID = -118986529255890943L;
 	private int id;
-	private String ip;
+//	private String ip;
 	private String name;
 	private String password;
 	public Client_Info(int id, String password)
@@ -49,27 +49,5 @@ public class Client_Info implements Serializable
 	{
 		return id;
 	}
-
-
-
-
-	public String getIp()
-	{
-		return ip;
-	}
-
-
-
-
-	public void setIp(String ip)
-	{
-		this.ip = ip;
-	}
-
-
-
-
-	
-	
 	
 }
